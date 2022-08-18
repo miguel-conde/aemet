@@ -4,6 +4,34 @@
 
 source(here::here("R", "src", "utils_gcd.R"), encoding = "utf8")
 
+library(sf)
+
+# FUNCTIONES --------------------------------------------------------------
+
+make_dec_lat <- function(x) {
+  
+  d <- substr(x, 1, 2)
+  m <- substr(x, 3, 4)
+  s <- substr(x, 5, 6)
+  
+  # the_sign <- ifelse(substr(x, 7, 7) == "W", "-", "+")
+  the_sign <- substr(x, 7, 7)
+  
+  paste0(d, "d", m, "'", s, "\"", the_sign) %>% sp::char2dms() %>% as.numeric()
+}
+
+make_dec_long <- function(x) {
+  
+  d <- substr(x, 1, 2)
+  m <- substr(x, 3, 4)
+  s <- substr(x, 5, 6)
+  
+  # the_sign <- ifelse(substr(x, 7, 7) == "W", "-", "+")
+  the_sign <- substr(x, 7, 7)
+  
+  paste0(d, "d", m, "'", s, "\"", the_sign) %>% sp::char2dms() %>% as.numeric()
+}
+
 
 # GET DATA ----------------------------------------------------------------
 
@@ -133,33 +161,8 @@ saveRDS(lst_res, FILE_AEMET_DATOS_ESTACIONES_1922_2021)
 
 # CLEAN DATA --------------------------------------------------------------
 
-library(sf)
 
-
-make_dec_lat <- function(x) {
-  
-  d <- substr(x, 1, 2)
-  m <- substr(x, 3, 4)
-  s <- substr(x, 5, 6)
-  
-  # the_sign <- ifelse(substr(x, 7, 7) == "W", "-", "+")
-  the_sign <- substr(x, 7, 7)
-  
-  paste0(d, "d", m, "'", s, "\"", the_sign) %>% sp::char2dms() %>% as.numeric()
-}
-
-make_dec_long <- function(x) {
-  
-  d <- substr(x, 1, 2)
-  m <- substr(x, 3, 4)
-  s <- substr(x, 5, 6)
-  
-  # the_sign <- ifelse(substr(x, 7, 7) == "W", "-", "+")
-  the_sign <- substr(x, 7, 7)
-  
-  paste0(d, "d", m, "'", s, "\"", the_sign) %>% sp::char2dms() %>% as.numeric()
-}
-
+# Estaciones --------------------------------------------------------------
 
 probe <- estaciones$datos %>% 
   mutate(latitud = make_dec_lat(latitud)) %>%  
@@ -167,43 +170,39 @@ probe <- estaciones$datos %>%
   mutate(altitud = as.numeric(altitud))
 st_estaciones <- probe %>% 
   # st_as_sf(coords = c("longitud", "latitud"), crs = 27700)  %>% 
-  st_as_sf(coords = c("longitud", "latitud"), crs = 4326, remove = TRUE) 
+  st_as_sf(coords = c("longitud", "latitud", "altitud"), crs = 4326, remove = FALSE) 
 st_estaciones %>% st_geometry() %>% plot()
 st_estaciones
 
-kk <- lst_res %>% sapply(function(x) x$datos) %>% bind_rows()
-st_probe <- kk %>% 
-  left_join(probe, by = c("indicativo", "nombre", "provincia", "altitud")) %>% 
+
+# Evolutivo ---------------------------------------------------------------
+
+evol <- lst_res %>% 
+  sapply(function(x) x$datos) %>% 
+  bind_rows() %>% 
+  mutate_at(vars(altitud, tmed, prec, tmin, tmax, velmedia, sol, presMax, 
+                 presMin, dir, racha),
+            ~ str_replace(., ",", ".") %>% as.numeric) %>% 
+  mutate(fecha = lubridate::as_date(fecha))
+
+st_evol <- evol %>% 
+  select(-provincia, -altitud, -nombre) %>% 
+  left_join(probe, by = "indicativo") %>% 
   # st_as_sf(coords = c("longitud", "latitud"), crs = 27700)  %>% 
   st_as_sf(coords = c("longitud", "latitud"), crs = 4326) 
-st_probe
+
+st_evol
 
 
-library(leaflet)
+# Save --------------------------------------------------------------------
 
-bbox <- as.double(round(
-  st_bbox(NUTS0) + c(-1, -1, 1, 1), 2
-))
 
-pal = colorNumeric("RdYlBu", domain = st_estaciones$altitud)
+all_data <- list(st_estaciones = st_estaciones,
+                 evol = evol,
+                 st_evol = st_evol)
 
-# Start leaflet
-m <- leaflet(NUTS0)
+saveRDS(all_data, FILE_ALL_DATA)
 
-# Add layers
-m <- m %>%
-  addProviderEspTiles("MDT.Relieve") %>%
-  # addProviderEspTiles("Militar") %>%
-  addPolygons(
-    color = NA,
-    fillColor = "green",
-    group = "Polygon"
-  ) %>%
-  # setMaxBounds(bbox[1], bbox[2], bbox[3], bbox[4])
-  addMarkers(data = st_estaciones, popup = ~nombre) %>%
-  addCircles(data = st_estaciones,col = ~pal(altitud), opacity = 0.9) %>% 
-  addLegend(data = st_estaciones, pal = pal, values = ~altitud)
 
-# Add additional options
+### 
 
-m 

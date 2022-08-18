@@ -27,3 +27,5 @@ DIR_OUTPUTS_FILES <- file.path(DIR_OUTPUTS, 'files')
 FILE_AEMET_ESTACIONES <- file.path(DIR_RAW_DATA, "estaciones.Rds")
 FILE_AEMET_MAESTRO_MUNICIPIOS <- file.path(DIR_RAW_DATA, "maestro_municipios.Rds")
 FILE_AEMET_DATOS_ESTACIONES_1922_2021 <- file.path(DIR_RAW_DATA, "datos_estaciones_1922_2021")
+
+FILE_ALL_DATA <- file.path(DIR_CLEAN_DATA, "all_data.Rds")
