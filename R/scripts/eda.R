@@ -11,6 +11,8 @@ library(clock)
 
 library(tibbletime)
 
+library(lme4)
+
 # DATA --------------------------------------------------------------------
 
 all_data <- readRDS(FILE_ALL_DATA)
@@ -387,3 +389,66 @@ ggplot(data = gg_probe_yr, aes(x = fecha, y = tmed_avg)) +
   geom_line(aes(color = "Temp. Media Anual")) +
   geom_line(data = gg_probe_yr, aes(y = tmed_10, color = "Temp. Media 10 años")) +
   geom_ribbon(data = gg_probe_yr, aes(ymin=lo,ymax=up),alpha=0.3)
+
+## MODELO ANUAL NIVEL ESPAÑA - solo estaciones 1922
+
+probe_model_anual_esp <- probe_yr %>% 
+  select(fecha, tmed_avg) %>% 
+  mutate(n_yr = year(fecha) - min(year(fecha)))
+
+lm_anual_esp <- lm(tmed_avg ~ n_yr + 1, probe_model_anual_esp)
+summary(lm_anual_esp)
+
+## Descomposicion MENSUAL  NIVEL ESPAÑA - solo estaciones 1922
+probe_model_mensual_esp <- probe_mth %>% 
+  select(fecha, tmed_avg) %>% 
+  mutate(n_yr = year(fecha) - min(year(fecha)),
+         n_mth = month(fecha, label = TRUE) %>% factor(ordered = FALSE))
+
+ts_probe_model_mensual_esp <- probe_model_mensual_esp$tmed_avg %>% 
+  ts(start = c(1922, 1), frequency = 12)
+
+stl_probe_model_mensual_esp <- stl(ts_probe_model_mensual_esp, s.window = "periodic")
+plot(stl_probe_model_mensual_esp)
+
+
+lm_mensual_esp <- lm(tmed_avg ~ n_yr*n_mth + 1, probe_model_mensual_esp)
+summary(lm_mensual_esp)
+
+
+# MODELOS -----------------------------------------------------------------
+
+probe <- all_data$evol %>% 
+  filter(indicativo %in% estaciones_1922) %>% 
+  mutate(fecha = date_group(fecha, "month")) %>% 
+  group_by(indicativo, nombre, fecha) %>% 
+  summarise_at(vars(tmin, tmed, tmax), 
+               list(avg = ~mean(., na.rm = TRUE), sd = ~sd(., na.rm = TRUE))) %>% 
+  ungroup() %>% 
+  mutate(n_yr = year(fecha) - min(year(fecha)),
+         mth = month(fecha, label = TRUE) %>% factor(ordered = FALSE),
+         indicativo = factor(indicativo))
+
+
+# No pooling --------------------------------------------------------------
+
+f <- tmed_avg ~ n_yr*indicativo*mth + 1
+no_pool_m_mes_est <- lm(f, probe)
+summary(no_pool_m_mes_est)
+
+# Multinivel meses y estaciones -------------------------------------------
+
+
+
+f <- tmed_avg ~ n_yr + 1 + (n_yr + 1 | indicativo) + (n_yr + 1 | mth)
+
+mltlvel_m_mes_est <- lmer(formula = f, data = probe)
+
+summary(mltlvel_m_mes_est)
+fixef(mltlvel_m_mes_est)
+ranef(mltlvel_m_mes_est)
+
+sapply(estaciones_1922,
+       function(x) fixef(mltlvel_m_mes_est)["n_yr"] + 
+         ranef(mltlvel_m_mes_est)$indicativo[x, "n_yr"] + 
+         ranef(mltlvel_m_mes_est)$mth[, "n_yr"])
