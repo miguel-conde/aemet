@@ -432,7 +432,8 @@ probe <- all_data$evol %>%
 
 # No pooling --------------------------------------------------------------
 
-f <- tmed_avg ~ n_yr*indicativo*mth + 1
+f <- tmed_avg ~ n_yr + indicativo + mth + n_yr:indicativo + n_yr:mth + 1
+f <- tmed_avg ~ n_yr + indicativo + mth + 1
 no_pool_m_mes_est <- lm(f, probe)
 summary(no_pool_m_mes_est)
 
@@ -452,3 +453,8 @@ sapply(estaciones_1922,
        function(x) fixef(mltlvel_m_mes_est)["n_yr"] + 
          ranef(mltlvel_m_mes_est)$indicativo[x, "n_yr"] + 
          ranef(mltlvel_m_mes_est)$mth[, "n_yr"])
+
+sapply(estaciones_1922,
+       function(x) fixef(mltlvel_m_mes_est)["(Intercept)"] + 
+         ranef(mltlvel_m_mes_est)$indicativo[x, "(Intercept)"] + 
+         ranef(mltlvel_m_mes_est)$mth[, "(Intercept)"])
