@@ -12,6 +12,7 @@ library(clock)
 library(tibbletime)
 
 library(lme4)
+library(nlme)
 
 # DATA --------------------------------------------------------------------
 
@@ -458,3 +459,7 @@ sapply(estaciones_1922,
        function(x) fixef(mltlvel_m_mes_est)["(Intercept)"] + 
          ranef(mltlvel_m_mes_est)$indicativo[x, "(Intercept)"] + 
          ranef(mltlvel_m_mes_est)$mth[, "(Intercept)"])
+
+lme(fixed = tmed_avg ~ n_yr + 1, data = probe, 
+    random = list(~ n_yr + 1 | indicativo, ~ n_yr + 1 | mth), na.action = "na.omit") %>% 
+  summary()
